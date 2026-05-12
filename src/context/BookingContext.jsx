@@ -1,9 +1,28 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { fetchCitas } from '../services/citaService';
 
 const BookingContext = createContext();
 
 export function BookingProvider({ children }) {
   const [bookedSlots, setBookedSlots] = useState([]);
+
+  useEffect(() => {
+    const loadBookedSlots = async () => {
+      try {
+        const citas = await fetchCitas();
+        const slots = citas.map(cita => ({
+          barberId: cita.barbero_id,
+          date: cita.fecha,
+          time: cita.hora,
+          bookedAt: cita.created_at
+        }));
+        setBookedSlots(slots);
+      } catch (error) {
+        console.error('Error loading booked slots:', error);
+      }
+    };
+    loadBookedSlots();
+  }, []);
 
   const addBookedSlot = useCallback((barberId, date, time) => {
     setBookedSlots(prev => {

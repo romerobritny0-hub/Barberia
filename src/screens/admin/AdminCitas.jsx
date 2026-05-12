@@ -1,9 +1,46 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, TextInput, Modal, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { fetchCitas, createCita, updateCita, deleteCita } from '../../services/citaService';
 import { fetchBarbers } from '../../services/barberService';
 
 const ESTADOS = ['pendiente', 'confirmada', 'completada', 'cancelada'];
+
+function NotificationModal({ visible, type, message, onClose }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.notificationOverlay}>
+        <View style={[styles.notificationContent, type === 'success' ? styles.successBg : styles.errorBg]}>
+          <Text style={styles.notificationIcon}>{type === 'success' ? '✓' : '✕'}</Text>
+          <Text style={styles.notificationText}>{message}</Text>
+          <TouchableOpacity style={styles.notificationBtn} onPress={onClose}>
+            <Text style={styles.notificationBtnText}>Aceptar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ConfirmModal({ visible, title, message, onConfirm, onCancel }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.notificationOverlay}>
+        <View style={styles.confirmContent}>
+          <Text style={styles.confirmTitle}>{title}</Text>
+          <Text style={styles.confirmMessage}>{message}</Text>
+          <View style={styles.confirmButtons}>
+            <TouchableOpacity style={styles.confirmCancelBtn} onPress={onCancel}>
+              <Text style={styles.confirmCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.confirmOkBtn} onPress={onConfirm}>
+              <Text style={styles.confirmOkText}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 export default function AdminCitas({ navigation }) {
   const [citas, setCitas] = useState([]);
@@ -12,6 +49,9 @@ export default function AdminCitas({ navigation }) {
   const [showModal, setShowModal] = useState(false);
   const [editingCita, setEditingCita] = useState(null);
   const [form, setForm] = useState({ cliente_nombre: '', cliente_telefono: '', barbero_id: '', fecha: '', hora: '', estado: 'pendiente', servicio: '' });
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState({ visible: false, type: '', message: '' });
+  const [confirmDelete, setConfirmDelete] = useState({ visible: false, id: null });
 
   useEffect(() => {
     loadData();
@@ -19,14 +59,19 @@ export default function AdminCitas({ navigation }) {
 
   const loadData = async () => {
     try {
+      setLoading(true);
       const [citasData, barbersData] = await Promise.all([fetchCitas(), fetchBarbers()]);
       setCitas(citasData || []);
       setBarbers(barbersData || []);
     } catch (error) {
-      console.error('Error loading data:', error);
+      showNotification('error', 'Error al cargar datos');
     } finally {
       setLoading(false);
     }
+  };
+
+  const showNotification = (type, message) => {
+    setNotification({ visible: true, type, message });
   };
 
   const resetForm = () => {
@@ -53,29 +98,30 @@ export default function AdminCitas({ navigation }) {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    Alert.alert(
-      'Confirmar eliminación',
-      '¿Estás seguro de eliminar esta cita?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: async () => {
-          const success = await deleteCita(id);
-          if (success) {
-            setCitas(citas.filter(c => c.id !== id));
-          }
-        }}
-      ]
-    );
+  const handleDeletePress = (id) => {
+    setConfirmDelete({ visible: true, id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    try {
+      await deleteCita(confirmDelete.id);
+      await loadData();
+      setConfirmDelete({ visible: false, id: null });
+      showNotification('success', 'Cita eliminada correctamente');
+    } catch (error) {
+      setConfirmDelete({ visible: false, id: null });
+      showNotification('error', 'Error al eliminar cita');
+    }
   };
 
   const handleSave = async () => {
     if (!form.cliente_nombre || !form.barbero_id || !form.fecha || !form.hora) {
-      Alert.alert('Error', 'Por favor completa los campos obligatorios');
+      showNotification('error', 'Completa todos los campos obligatorios');
       return;
     }
     
     try {
+      setSaving(true);
       const citaData = {
         cliente_nombre: form.cliente_nombre,
         cliente_telefono: form.cliente_telefono || null,
@@ -87,20 +133,18 @@ export default function AdminCitas({ navigation }) {
       };
       
       if (editingCita) {
-        const data = await updateCita(editingCita.id, citaData);
-        if (data) {
-          await loadData();
-        }
+        await updateCita(editingCita.id, citaData);
       } else {
-        const data = await createCita(citaData);
-        if (data) {
-          await loadData();
-        }
+        await createCita(citaData);
       }
+      await loadData();
       setShowModal(false);
       resetForm();
+      showNotification('success', editingCita ? 'Cita actualizada' : 'Cita creada correctamente');
     } catch (error) {
-      Alert.alert('Error', 'No se pudo guardar la cita');
+      showNotification('error', 'Error al guardar cita');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -157,7 +201,7 @@ export default function AdminCitas({ navigation }) {
                 <TouchableOpacity style={styles.editBtn} onPress={() => handleEdit(cita)}>
                   <Text style={styles.editBtnText}>✏️</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(cita.id)}>
+                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeletePress(cita.id)}>
                   <Text style={styles.deleteBtnText}>🗑️</Text>
                 </TouchableOpacity>
               </View>
@@ -208,14 +252,29 @@ export default function AdminCitas({ navigation }) {
                 <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setShowModal(false); resetForm(); }}>
                   <Text style={styles.modalCancelText}>Cancelar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSave}>
-                  <Text style={styles.modalSaveText}>Guardar</Text>
+                <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSave} disabled={saving}>
+                  <Text style={styles.modalSaveText}>{saving ? 'Guardando...' : 'Guardar'}</Text>
                 </TouchableOpacity>
               </View>
             </View>
           </ScrollView>
         </View>
       </Modal>
+
+      <NotificationModal
+        visible={notification.visible}
+        type={notification.type}
+        message={notification.message}
+        onClose={() => setNotification({ ...notification, visible: false })}
+      />
+
+      <ConfirmModal
+        visible={confirmDelete.visible}
+        title="Confirmar eliminación"
+        message="¿Estás seguro de eliminar esta cita?"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setConfirmDelete({ visible: false, id: null })}
+      />
     </SafeAreaView>
   );
 }
@@ -257,5 +316,21 @@ const styles = StyleSheet.create({
   modalCancelBtn: { flex: 1, backgroundColor: '#333', padding: 14, borderRadius: 10 },
   modalCancelText: { color: '#FFF', textAlign: 'center', fontWeight: 'bold' },
   modalSaveBtn: { flex: 1, backgroundColor: '#D4AF37', padding: 14, borderRadius: 10 },
-  modalSaveText: { color: '#0F0E17', textAlign: 'center', fontWeight: 'bold' }
+  modalSaveText: { color: '#0F0E17', textAlign: 'center', fontWeight: 'bold' },
+  notificationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  notificationContent: { backgroundColor: '#1C1B29', borderRadius: 16, padding: 30, width: '100%', maxWidth: 320, alignItems: 'center' },
+  successBg: { borderTopWidth: 4, borderTopColor: '#4CAF50' },
+  errorBg: { borderTopWidth: 4, borderTopColor: '#ff4444' },
+  notificationIcon: { fontSize: 48, marginBottom: 15, color: '#D4AF37' },
+  notificationText: { color: '#FFF', fontSize: 16, textAlign: 'center', marginBottom: 20 },
+  notificationBtn: { backgroundColor: '#D4AF37', paddingHorizontal: 40, paddingVertical: 12, borderRadius: 10 },
+  notificationBtnText: { color: '#0F0E17', fontWeight: 'bold', fontSize: 16 },
+  confirmContent: { backgroundColor: '#1C1B29', borderRadius: 16, padding: 30, width: '100%', maxWidth: 320 },
+  confirmTitle: { color: '#FFF', fontSize: 20, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },
+  confirmMessage: { color: '#AAA', fontSize: 14, textAlign: 'center', marginBottom: 25 },
+  confirmButtons: { flexDirection: 'row', gap: 12 },
+  confirmCancelBtn: { flex: 1, backgroundColor: '#333', padding: 14, borderRadius: 10 },
+  confirmCancelText: { color: '#FFF', textAlign: 'center', fontWeight: 'bold' },
+  confirmOkBtn: { flex: 1, backgroundColor: '#ff4444', padding: 14, borderRadius: 10 },
+  confirmOkText: { color: '#FFF', textAlign: 'center', fontWeight: 'bold' }
 });

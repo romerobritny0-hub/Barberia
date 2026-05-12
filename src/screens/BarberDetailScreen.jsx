@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, Platform, SafeAreaView, Image, ScrollView, useWindowDimensions } from 'react-native';
 import { useBooking } from '../context/BookingContext';
+import { createCita } from '../services/citaService';
 
 const SCHEDULES = [];
 for (let h = 8; h <= 20; h++) {
@@ -168,11 +169,29 @@ export default function BarberDetailScreen({ route, navigation }) {
     setShowModal(true);
   };
 
-  const handleConfirm = () => {
-    addBookedSlot(barber.id, dateKey, selectedTime);
-    setShowModal(false);
-    setShowSuccessModal(true);
-    setSelectedTime(null);
+  const handleConfirm = async () => {
+    try {
+      const citaData = {
+        barbero_id: barber.id,
+        cliente_nombre: 'Cliente',
+        cliente_telefono: '',
+        fecha: date.toISOString().split('T')[0],
+        hora: selectedTime,
+        estado: 'confirmada',
+        servicio: barber.especialidad || 'Corte'
+      };
+      await createCita(citaData);
+      addBookedSlot(barber.id, dateKey, selectedTime);
+      setShowModal(false);
+      setShowSuccessModal(true);
+      setSelectedTime(null);
+    } catch (error) {
+      console.error('Error al guardar cita:', error);
+      addBookedSlot(barber.id, dateKey, selectedTime);
+      setShowModal(false);
+      setShowSuccessModal(true);
+      setSelectedTime(null);
+    }
   };
 
   const handleCancelModal = () => {

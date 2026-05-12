@@ -27,28 +27,19 @@ export const fetchCitasByDate = async (fecha) => {
 
 export const createCita = async (cita) => {
   const { data, error } = await supabase.from('citas').insert([cita]).select();
-  if (error) {
-    console.error('Error creating cita:', error);
-    return null;
-  }
+  if (error) throw error;
   return data;
 };
 
 export const updateCita = async (id, cita) => {
   const { data, error } = await supabase.from('citas').update(cita).eq('id', id).select();
-  if (error) {
-    console.error('Error updating cita:', error);
-    return null;
-  }
+  if (error) throw error;
   return data;
 };
 
 export const deleteCita = async (id) => {
   const { error } = await supabase.from('citas').delete().eq('id', id);
-  if (error) {
-    console.error('Error deleting cita:', error);
-    return false;
-  }
+  if (error) throw error;
   return true;
 };
 

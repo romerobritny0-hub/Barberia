@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, StatusBar, ScrollView, useWindowDimensions, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Image, TouchableOpacity, StatusBar, ScrollView, useWindowDimensions } from 'react-native';
 import { BARBERS } from '../constants/barbers';
 import { fetchBarbers } from '../services/barberService';
 
 function BarberCard({ barber, onPress, cardWidth }) {
+  const isLocalImage = barber.imagen?.startsWith('blob:') || barber.imagen?.startsWith('file://');
+  
   return (
     <TouchableOpacity
       style={[styles.card, { width: cardWidth }]}
@@ -11,7 +13,7 @@ function BarberCard({ barber, onPress, cardWidth }) {
       activeOpacity={0.85}
     >
       <View style={styles.imageContainer}>
-        {barber.imagen ? (
+        {barber.imagen && !isLocalImage ? (
           <Image source={{ uri: barber.imagen }} style={styles.image} resizeMode="cover" />
         ) : (
           <View style={styles.imagePlaceholder}>
@@ -34,6 +36,7 @@ export default function HomeScreen({ navigation }) {
   const { width } = useWindowDimensions();
   const [barbers, setBarbers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   
   const numColumns = width < 400 ? 1 : width < 768 ? 2 : 3;
   const cardWidth = (width - 40 - (numColumns - 1) * 12) / numColumns;
@@ -45,14 +48,9 @@ export default function HomeScreen({ navigation }) {
   const loadBarbers = async () => {
     try {
       const data = await fetchBarbers();
-      if (data && data.length > 0) {
-        setBarbers(data);
-      } else {
-        setBarbers(BARBERS);
-      }
-    } catch (error) {
-      console.error('Error loading barbers:', error);
-      setBarbers(BARBERS);
+      setBarbers(data || []);
+    } catch (err) {
+      console.error('Error loading barbers:', err);
     } finally {
       setLoading(false);
     }
@@ -70,7 +68,12 @@ export default function HomeScreen({ navigation }) {
 
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#D4AF37" />
+          <Text style={styles.loadingText}>Cargando barberos...</Text>
+        </View>
+      ) : barbers.length === 0 ? (
+        <View style={styles.loadingContainer}>
+          <Text style={styles.errorText}>No hay barberos disponibles</Text>
+          <Text style={styles.errorSubtext}>Verifica la conexión a Supabase</Text>
         </View>
       ) : (
         <ScrollView 
@@ -132,6 +135,21 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center'
+  },
+  loadingText: {
+    color: '#D4AF37',
+    fontSize: 16,
+    marginTop: 10
+  },
+  errorText: {
+    color: '#ff4444',
+    fontSize: 18,
+    fontWeight: 'bold'
+  },
+  errorSubtext: {
+    color: '#888',
+    fontSize: 14,
+    marginTop: 5
   },
   scrollContainer: { flex: 1 },
   gridContainer: {

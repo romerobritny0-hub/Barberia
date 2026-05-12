@@ -1,8 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, TextInput, Modal, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, TextInput, Modal, ActivityIndicator } from 'react-native';
 import { fetchAdmins, createAdmin, updateAdmin, deleteAdmin } from '../../services/adminService';
 
 const ROLES = ['admin', 'superadmin'];
+
+function NotificationModal({ visible, type, message, onClose }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.notificationOverlay}>
+        <View style={[styles.notificationContent, type === 'success' ? styles.successBg : styles.errorBg]}>
+          <Text style={styles.notificationIcon}>{type === 'success' ? '✓' : '✕'}</Text>
+          <Text style={styles.notificationText}>{message}</Text>
+          <TouchableOpacity style={styles.notificationBtn} onPress={onClose}>
+            <Text style={styles.notificationBtnText}>Aceptar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ConfirmModal({ visible, title, message, onConfirm, onCancel }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.notificationOverlay}>
+        <View style={styles.confirmContent}>
+          <Text style={styles.confirmTitle}>{title}</Text>
+          <Text style={styles.confirmMessage}>{message}</Text>
+          <View style={styles.confirmButtons}>
+            <TouchableOpacity style={styles.confirmCancelBtn} onPress={onCancel}>
+              <Text style={styles.confirmCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.confirmOkBtn} onPress={onConfirm}>
+              <Text style={styles.confirmOkText}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 export default function AdminUsers({ navigation, route }) {
   const currentAdmin = route.params?.admin;
@@ -13,6 +50,9 @@ export default function AdminUsers({ navigation, route }) {
   const [showModal, setShowModal] = useState(false);
   const [editingAdmin, setEditingAdmin] = useState(null);
   const [form, setForm] = useState({ nombre: '', username: '', password: '', rol: 'admin' });
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState({ visible: false, type: '', message: '' });
+  const [confirmDelete, setConfirmDelete] = useState({ visible: false, id: null });
 
   useEffect(() => {
     loadAdmins();
@@ -20,13 +60,18 @@ export default function AdminUsers({ navigation, route }) {
 
   const loadAdmins = async () => {
     try {
+      setLoading(true);
       const data = await fetchAdmins();
       setAdmins(data || []);
     } catch (error) {
-      console.error('Error loading admins:', error);
+      showNotification('error', 'Error al cargar administradores');
     } finally {
       setLoading(false);
     }
+  };
+
+  const showNotification = (type, message) => {
+    setNotification({ visible: true, type, message });
   };
 
   const resetForm = () => {
@@ -36,7 +81,7 @@ export default function AdminUsers({ navigation, route }) {
 
   const handleAdd = () => {
     if (!isSuperAdmin) {
-      Alert.alert('Acceso denegado', 'Solo el superadmin puede agregar administradores');
+      showNotification('error', 'Solo el superadmin puede agregar administradores');
       return;
     }
     resetForm();
@@ -45,7 +90,7 @@ export default function AdminUsers({ navigation, route }) {
 
   const handleEdit = (admin) => {
     if (!isSuperAdmin && admin.id !== currentAdmin?.id) {
-      Alert.alert('Acceso denegado', 'No tienes permisos para editar este administrador');
+      showNotification('error', 'No tienes permisos para editar este administrador');
       return;
     }
     setEditingAdmin(admin);
@@ -58,42 +103,42 @@ export default function AdminUsers({ navigation, route }) {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
+  const handleDeletePress = (id) => {
     if (!isSuperAdmin) {
-      Alert.alert('Acceso denegado', 'Solo el superadmin puede eliminar administradores');
+      showNotification('error', 'Solo el superadmin puede eliminar administradores');
       return;
     }
     if (id === currentAdmin?.id) {
-      Alert.alert('Error', 'No puedes eliminarte a ti mismo');
+      showNotification('error', 'No puedes eliminarte a ti mismo');
       return;
     }
+    setConfirmDelete({ visible: true, id });
+  };
 
-    Alert.alert(
-      'Confirmar eliminación',
-      '¿Estás seguro de eliminar este administrador?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: async () => {
-          const success = await deleteAdmin(id);
-          if (success) {
-            setAdmins(admins.filter(a => a.id !== id));
-          }
-        }}
-      ]
-    );
+  const handleDeleteConfirm = async () => {
+    try {
+      await deleteAdmin(confirmDelete.id);
+      await loadAdmins();
+      setConfirmDelete({ visible: false, id: null });
+      showNotification('success', 'Administrador eliminado correctamente');
+    } catch (error) {
+      setConfirmDelete({ visible: false, id: null });
+      showNotification('error', 'Error al eliminar administrador');
+    }
   };
 
   const handleSave = async () => {
     if (!form.nombre || !form.username) {
-      Alert.alert('Error', 'Por favor completa los campos obligatorios');
+      showNotification('error', 'Completa todos los campos obligatorios');
       return;
     }
     if (!editingAdmin && !form.password) {
-      Alert.alert('Error', 'La contraseña es obligatoria para nuevos administradores');
+      showNotification('error', 'La contraseña es obligatoria para nuevos administradores');
       return;
     }
 
     try {
+      setSaving(true);
       const adminData = {
         nombre: form.nombre,
         username: form.username,
@@ -104,20 +149,18 @@ export default function AdminUsers({ navigation, route }) {
       }
       
       if (editingAdmin) {
-        const data = await updateAdmin(editingAdmin.id, adminData);
-        if (data) {
-          await loadAdmins();
-        }
+        await updateAdmin(editingAdmin.id, adminData);
       } else {
-        const data = await createAdmin(adminData);
-        if (data) {
-          await loadAdmins();
-        }
+        await createAdmin(adminData);
       }
+      await loadAdmins();
       setShowModal(false);
       resetForm();
+      showNotification('success', editingAdmin ? 'Administrador actualizado' : 'Administrador creado correctamente');
     } catch (error) {
-      Alert.alert('Error', 'No se pudo guardar el administrador');
+      showNotification('error', 'Error al guardar administrador');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -168,7 +211,7 @@ export default function AdminUsers({ navigation, route }) {
                   <Text style={styles.editBtnText}>✏️ Editar</Text>
                 </TouchableOpacity>
                 {isSuperAdmin && admin.id !== currentAdmin?.id && (
-                  <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(admin.id)}>
+                  <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeletePress(admin.id)}>
                     <Text style={styles.deleteBtnText}>🗑️ Eliminar</Text>
                   </TouchableOpacity>
                 )}
@@ -208,13 +251,28 @@ export default function AdminUsers({ navigation, route }) {
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setShowModal(false); resetForm(); }}>
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSave}>
-                <Text style={styles.modalSaveText}>Guardar</Text>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSave} disabled={saving}>
+                <Text style={styles.modalSaveText}>{saving ? 'Guardando...' : 'Guardar'}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
+      <NotificationModal
+        visible={notification.visible}
+        type={notification.type}
+        message={notification.message}
+        onClose={() => setNotification({ ...notification, visible: false })}
+      />
+
+      <ConfirmModal
+        visible={confirmDelete.visible}
+        title="Confirmar eliminación"
+        message="¿Estás seguro de eliminar este administrador?"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setConfirmDelete({ visible: false, id: null })}
+      />
     </SafeAreaView>
   );
 }
@@ -258,5 +316,21 @@ const styles = StyleSheet.create({
   modalCancelBtn: { flex: 1, backgroundColor: '#333', padding: 14, borderRadius: 10 },
   modalCancelText: { color: '#FFF', textAlign: 'center', fontWeight: 'bold' },
   modalSaveBtn: { flex: 1, backgroundColor: '#9C27B0', padding: 14, borderRadius: 10 },
-  modalSaveText: { color: '#fff', textAlign: 'center', fontWeight: 'bold' }
+  modalSaveText: { color: '#fff', textAlign: 'center', fontWeight: 'bold' },
+  notificationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  notificationContent: { backgroundColor: '#1C1B29', borderRadius: 16, padding: 30, width: '100%', maxWidth: 320, alignItems: 'center' },
+  successBg: { borderTopWidth: 4, borderTopColor: '#4CAF50' },
+  errorBg: { borderTopWidth: 4, borderTopColor: '#ff4444' },
+  notificationIcon: { fontSize: 48, marginBottom: 15, color: '#D4AF37' },
+  notificationText: { color: '#FFF', fontSize: 16, textAlign: 'center', marginBottom: 20 },
+  notificationBtn: { backgroundColor: '#D4AF37', paddingHorizontal: 40, paddingVertical: 12, borderRadius: 10 },
+  notificationBtnText: { color: '#0F0E17', fontWeight: 'bold', fontSize: 16 },
+  confirmContent: { backgroundColor: '#1C1B29', borderRadius: 16, padding: 30, width: '100%', maxWidth: 320 },
+  confirmTitle: { color: '#FFF', fontSize: 20, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },
+  confirmMessage: { color: '#AAA', fontSize: 14, textAlign: 'center', marginBottom: 25 },
+  confirmButtons: { flexDirection: 'row', gap: 12 },
+  confirmCancelBtn: { flex: 1, backgroundColor: '#333', padding: 14, borderRadius: 10 },
+  confirmCancelText: { color: '#FFF', textAlign: 'center', fontWeight: 'bold' },
+  confirmOkBtn: { flex: 1, backgroundColor: '#ff4444', padding: 14, borderRadius: 10 },
+  confirmOkText: { color: '#FFF', textAlign: 'center', fontWeight: 'bold' }
 });

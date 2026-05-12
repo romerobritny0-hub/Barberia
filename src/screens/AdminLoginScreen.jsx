@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform as RNPlatform } from 'react-native';
 import { loginAdmin } from '../services/adminService';
 
@@ -7,6 +7,7 @@ export default function AdminLoginScreen({ navigation }) {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const passwordRef = useRef(null);
 
   const handleLogin = async () => {
     if (!username || !password) {
@@ -53,6 +54,8 @@ export default function AdminLoginScreen({ navigation }) {
               onChangeText={setUsername}
               autoCapitalize="none"
               autoCorrect={false}
+              returnKeyType="next"
+              onSubmitEditing={() => passwordRef.current?.focus()}
             />
           </View>
 
@@ -65,6 +68,9 @@ export default function AdminLoginScreen({ navigation }) {
               secureTextEntry
               value={password}
               onChangeText={setPassword}
+              returnKeyType="done"
+              onSubmitEditing={handleLogin}
+              ref={passwordRef}
             />
           </View>
 

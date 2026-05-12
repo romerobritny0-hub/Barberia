@@ -14,41 +14,36 @@ export const loginAdmin = async (username, password) => {
     .from('administradores')
     .select('*')
     .eq('username', username)
-    .eq('password', password)
-    .eq('activo', true)
-    .single();
+    .eq('activo', true);
   
-  if (error) {
+  if (error || !data || data.length === 0) {
     console.error('Error login admin:', error);
     return null;
   }
-  return data;
+  
+  const admin = data[0];
+  if (admin.password !== password) {
+    return null;
+  }
+  
+  return admin;
 };
 
 export const createAdmin = async (admin) => {
   const { data, error } = await supabase.from('administradores').insert([admin]).select();
-  if (error) {
-    console.error('Error creating admin:', error);
-    return null;
-  }
+  if (error) throw error;
   return data;
 };
 
 export const updateAdmin = async (id, admin) => {
   const { data, error } = await supabase.from('administradores').update(admin).eq('id', id).select();
-  if (error) {
-    console.error('Error updating admin:', error);
-    return null;
-  }
+  if (error) throw error;
   return data;
 };
 
 export const deleteAdmin = async (id) => {
   const { error } = await supabase.from('administradores').update({ activo: false }).eq('id', id);
-  if (error) {
-    console.error('Error deleting admin:', error);
-    return false;
-  }
+  if (error) throw error;
   return true;
 };
 

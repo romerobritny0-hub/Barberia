@@ -12,11 +12,12 @@ Aplicación móvil y web desarrollada con React Native + Expo para la gestión d
 - **Modales estilizados**: Confirmación, éxito y advertencias con diseño premium
 
 ### Administrador
-- **Login seguro**: Acceso con PIN protegido (2015)
-- **Panel administrativo**: Menú con 4 módulos
+- **Login con usuario y contraseña**: Autenticación mediante base de datos
+- **Panel administrativo**: Menú con módulos según rol
 - **Gestión de barberos**: CRUD completo conectado a Supabase
 - **Gestión de sillas**: CRUD con estados (disponible, ocupada, mantenimiento)
 - **Gestión de citas**: CRUD con estados (pendiente, confirmada, completada, cancelada)
+- **Gestión de usuarios**: CRUD de administradores (solo superadmin)
 - **Reportes**: Estadísticas y gráficos de rendimiento
 
 ## Estructura del Proyecto
@@ -34,14 +35,16 @@ BarberiaApp/
 │   │       ├── AdminBarbers.jsx      # CRUD barberos
 │   │       ├── AdminSillas.jsx       # CRUD sillas
 │   │       ├── AdminCitas.jsx        # CRUD citas
-│   │       └── AdminReportes.jsx     # Reportes
+│   │       ├── AdminReportes.jsx     # Reportes
+│   │       └── AdminUsers.jsx        # CRUD administradores
 │   ├── navigation/
 │   │   └── AppNavigator.jsx          # Stack Navigator
 │   ├── services/                     # Servicios de datos
 │   │   ├── supabase.js              # Cliente Supabase
 │   │   ├── barberService.js         # CRUD barberos
 │   │   ├── sillaService.js          # CRUD sillas
-│   │   └── citaService.js           # CRUD citas
+│   │   ├── citaService.js           # CRUD citas
+│   │   └── adminService.js          # CRUD administradores
 │   ├── context/
 │   │   └── BookingContext.jsx       # Estado global de reservas
 │   ├── constants/
@@ -96,6 +99,15 @@ const supabaseAnonKey = 'sb_publishable_KegFhb2mPI3vWGQ2AeQ25Q_52QsGrUP';
 
 Ver `db/schema.sql` para la estructura completa. Tablas principales:
 
+**administradores**
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| id | SERIAL | ID único |
+| nombre | VARCHAR | Nombre completo |
+| username | VARCHAR | Usuario (único) |
+| password | VARCHAR | Contraseña |
+| rol | VARCHAR | admin/superadmin |
+
 **barberos**
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
@@ -130,7 +142,17 @@ Ver `db/schema.sql` para la estructura completa. Tablas principales:
 
 ## Credenciales
 
-- **PIN Admin**: `2015`
+### Administrador Default
+| Username | Password | Rol |
+|----------|----------|-----|
+| admin | admin2015 | superadmin |
+
+## Roles de Administrador
+
+| Rol | Permisos |
+|-----|----------|
+| admin | Gestiona barberos, sillas, citas y reportes |
+| superadmin | Todos los permisos + gestionar administradores |
 
 ## Horarios
 
@@ -167,6 +189,7 @@ Ver `db/schema.sql` para la estructura completa. Tablas principales:
 - **Éxito**: #4CAF50
 - **Advertencia**: #FF9800
 - **Info**: #2196F3
+- **Superadmin**: #9C27B0
 
 ### Responsive
 - Móvil pequeño (<400px): 1 columna
@@ -181,10 +204,11 @@ Ver `db/schema.sql` para la estructura completa. Tablas principales:
 - [x] Bloqueo de horas pasadas
 - [x] Validación de fechas
 - [x] Modales de confirmación
-- [x] Panel administrativo
+- [x] Panel administrativo con roles
 - [x] CRUD barberos con Supabase
 - [x] CRUD sillas con Supabase
 - [x] CRUD citas con Supabase
+- [x] CRUD administradores (superadmin)
 - [x] Reportes y estadísticas
 - [x] Conexión a Supabase
 - [x] Diseño responsive

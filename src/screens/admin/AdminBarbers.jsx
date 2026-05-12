@@ -1,6 +1,45 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, TextInput, Modal, Image, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, TextInput, Modal, Image, ActivityIndicator } from 'react-native';
 import { fetchBarbers, createBarber, updateBarber, deleteBarber } from '../../services/barberService';
+import { uploadBarberImage } from '../../services/imageService';
+import * as ImagePicker from 'expo-image-picker';
+
+function NotificationModal({ visible, type, message, onClose }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.notificationOverlay}>
+        <View style={[styles.notificationContent, type === 'success' ? styles.successBg : styles.errorBg]}>
+          <Text style={styles.notificationIcon}>{type === 'success' ? '✓' : '✕'}</Text>
+          <Text style={styles.notificationText}>{message}</Text>
+          <TouchableOpacity style={styles.notificationBtn} onPress={onClose}>
+            <Text style={styles.notificationBtnText}>Aceptar</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+function ConfirmModal({ visible, title, message, onConfirm, onCancel }) {
+  return (
+    <Modal visible={visible} transparent animationType="fade">
+      <View style={styles.notificationOverlay}>
+        <View style={styles.confirmContent}>
+          <Text style={styles.confirmTitle}>{title}</Text>
+          <Text style={styles.confirmMessage}>{message}</Text>
+          <View style={styles.confirmButtons}>
+            <TouchableOpacity style={styles.confirmCancelBtn} onPress={onCancel}>
+              <Text style={styles.confirmCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.confirmOkBtn} onPress={onConfirm}>
+              <Text style={styles.confirmOkText}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 export default function AdminBarbers({ navigation }) {
   const [barbers, setBarbers] = useState([]);
@@ -8,6 +47,9 @@ export default function AdminBarbers({ navigation }) {
   const [showModal, setShowModal] = useState(false);
   const [editingBarber, setEditingBarber] = useState(null);
   const [form, setForm] = useState({ nombre: '', especialidad: '', imagen: '' });
+  const [saving, setSaving] = useState(false);
+  const [notification, setNotification] = useState({ visible: false, type: '', message: '' });
+  const [confirmDelete, setConfirmDelete] = useState({ visible: false, id: null });
 
   useEffect(() => {
     loadBarbers();
@@ -15,18 +57,39 @@ export default function AdminBarbers({ navigation }) {
 
   const loadBarbers = async () => {
     try {
+      setLoading(true);
       const data = await fetchBarbers();
       setBarbers(data || []);
     } catch (error) {
-      console.error('Error loading barbers:', error);
+      showNotification('error', 'Error al cargar barberos');
     } finally {
       setLoading(false);
     }
   };
 
+  const showNotification = (type, message) => {
+    setNotification({ visible: true, type, message });
+  };
+
   const resetForm = () => {
     setForm({ nombre: '', especialidad: '', imagen: '' });
     setEditingBarber(null);
+  };
+
+  const pickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permissionResult.granted) {
+      showNotification('error', 'Permiso requerido para acceder a imágenes');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.5,
+    });
+    if (!result.canceled && result.assets[0]) {
+      setForm({ ...form, imagen: result.assets[0].uri });
+    }
   };
 
   const handleAdd = () => {
@@ -40,44 +103,55 @@ export default function AdminBarbers({ navigation }) {
     setShowModal(true);
   };
 
-  const handleDelete = async (id) => {
-    Alert.alert(
-      'Confirmar eliminación',
-      '¿Estás seguro de eliminar este barbero?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Eliminar', style: 'destructive', onPress: async () => {
-          const success = await deleteBarber(id);
-          if (success) {
-            setBarbers(barbers.filter(b => b.id !== id));
-          }
-        }}
-      ]
-    );
+  const handleDeletePress = (id) => {
+    setConfirmDelete({ visible: true, id });
+  };
+
+  const handleDeleteConfirm = async () => {
+    try {
+      await deleteBarber(confirmDelete.id);
+      await loadBarbers();
+      setConfirmDelete({ visible: false, id: null });
+      showNotification('success', 'Barbero eliminado correctamente');
+    } catch (error) {
+      setConfirmDelete({ visible: false, id: null });
+      showNotification('error', 'Error al eliminar barbero');
+    }
   };
 
   const handleSave = async () => {
     if (!form.nombre || !form.especialidad) {
-      Alert.alert('Error', 'Por favor completa los campos obligatorios');
+      showNotification('error', 'Completa todos los campos obligatorios');
       return;
     }
     
     try {
-      if (editingBarber) {
-        const data = await updateBarber(editingBarber.id, form);
-        if (data) {
-          setBarbers(barbers.map(b => b.id === editingBarber.id ? { ...b, ...form } : b));
-        }
-      } else {
-        const data = await createBarber(form);
-        if (data) {
-          await loadBarbers();
+      setSaving(true);
+      
+      let imagenUrl = form.imagen;
+      if (form.imagen && (form.imagen.startsWith('blob:') || form.imagen.startsWith('file://'))) {
+        imagenUrl = await uploadBarberImage(form.imagen, form.nombre);
+        if (!imagenUrl) {
+          showNotification('error', 'Error al subir imagen, se guardará sin imagen');
+          imagenUrl = '';
         }
       }
+      
+      const dataToSave = { ...form, imagen: imagenUrl };
+      
+      if (editingBarber) {
+        await updateBarber(editingBarber.id, dataToSave);
+      } else {
+        await createBarber(dataToSave);
+      }
+      await loadBarbers();
       setShowModal(false);
       resetForm();
+      showNotification('success', editingBarber ? 'Barbero actualizado' : 'Barbero creado correctamente');
     } catch (error) {
-      Alert.alert('Error', 'No se pudo guardar el barbero');
+      showNotification('error', 'Error al guardar barbero');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -100,29 +174,32 @@ export default function AdminBarbers({ navigation }) {
         ) : barbers.length === 0 ? (
           <Text style={styles.emptyText}>No hay barberos registrados</Text>
         ) : (
-          barbers.map((barber) => (
-            <View key={barber.id} style={styles.card}>
-              {barber.imagen ? (
-                <Image source={{ uri: barber.imagen }} style={styles.cardImage} />
-              ) : (
-                <View style={styles.cardImagePlaceholder}>
-                  <Text style={styles.cardImagePlaceholderText}>{barber.nombre?.charAt(0) || '?'}</Text>
+          barbers.map((barber) => {
+              const isLocalImage = barber.imagen?.startsWith('blob:') || barber.imagen?.startsWith('file://');
+              return (
+                <View key={barber.id} style={styles.card}>
+                  {barber.imagen && !isLocalImage ? (
+                    <Image source={{ uri: barber.imagen }} style={styles.cardImage} />
+                  ) : (
+                    <View style={styles.cardImagePlaceholder}>
+                      <Text style={styles.cardImagePlaceholderText}>{barber.nombre?.charAt(0) || '?'}</Text>
+                    </View>
+                  )}
+                  <View style={styles.cardInfo}>
+                    <Text style={styles.cardName}>{barber.nombre}</Text>
+                    <Text style={styles.cardSpecialty}>{barber.especialidad}</Text>
+                  </View>
+                  <View style={styles.cardActions}>
+                    <TouchableOpacity style={styles.editBtn} onPress={() => handleEdit(barber)}>
+                      <Text style={styles.editBtnText}>✏️</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDeletePress(barber.id)}>
+                      <Text style={styles.deleteBtnText}>🗑️</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              )}
-              <View style={styles.cardInfo}>
-                <Text style={styles.cardName}>{barber.nombre}</Text>
-                <Text style={styles.cardSpecialty}>{barber.especialidad}</Text>
-              </View>
-              <View style={styles.cardActions}>
-                <TouchableOpacity style={styles.editBtn} onPress={() => handleEdit(barber)}>
-                  <Text style={styles.editBtnText}>✏️</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.deleteBtn} onPress={() => handleDelete(barber.id)}>
-                  <Text style={styles.deleteBtnText}>🗑️</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))
+              );
+            })
         )}
       </ScrollView>
 
@@ -131,21 +208,48 @@ export default function AdminBarbers({ navigation }) {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{editingBarber ? 'Editar Barbero' : 'Nuevo Barbero'}</Text>
             
-            <TextInput style={styles.input} placeholder="Nombre" placeholderTextColor="#666" value={form.nombre} onChangeText={(t) => setForm({ ...form, nombre: t })} />
-            <TextInput style={styles.input} placeholder="Especialidad" placeholderTextColor="#666" value={form.especialidad} onChangeText={(t) => setForm({ ...form, especialidad: t })} />
-            <TextInput style={styles.input} placeholder="URL de imagen" placeholderTextColor="#666" value={form.imagen} onChangeText={(t) => setForm({ ...form, imagen: t })} />
+            <TextInput style={styles.input} placeholder="Nombre *" placeholderTextColor="#666" value={form.nombre} onChangeText={(t) => setForm({ ...form, nombre: t })} />
+            <TextInput style={styles.input} placeholder="Especialidad *" placeholderTextColor="#666" value={form.especialidad} onChangeText={(t) => setForm({ ...form, especialidad: t })} />
+            
+            <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
+              <Text style={styles.imagePickerBtnText}>{form.imagen ? 'Cambiar imagen' : 'Seleccionar imagen'}</Text>
+            </TouchableOpacity>
+            
+            {form.imagen && (
+              <View style={styles.imagePreviewContainer}>
+                <Image source={{ uri: form.imagen }} style={styles.imagePreview} />
+                <TouchableOpacity style={styles.removeImageBtn} onPress={() => setForm({ ...form, imagen: '' })}>
+                  <Text style={styles.removeImageBtnText}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            )}
             
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.modalCancelBtn} onPress={() => { setShowModal(false); resetForm(); }}>
                 <Text style={styles.modalCancelText}>Cancelar</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSave}>
-                <Text style={styles.modalSaveText}>Guardar</Text>
+              <TouchableOpacity style={styles.modalSaveBtn} onPress={handleSave} disabled={saving}>
+                <Text style={styles.modalSaveText}>{saving ? 'Guardando...' : 'Guardar'}</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
+
+      <NotificationModal
+        visible={notification.visible}
+        type={notification.type}
+        message={notification.message}
+        onClose={() => setNotification({ ...notification, visible: false })}
+      />
+
+      <ConfirmModal
+        visible={confirmDelete.visible}
+        title="Confirmar eliminación"
+        message="¿Estás seguro de eliminar este barbero?"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setConfirmDelete({ visible: false, id: null })}
+      />
     </SafeAreaView>
   );
 }
@@ -174,9 +278,31 @@ const styles = StyleSheet.create({
   modalContent: { backgroundColor: '#1C1B29', borderRadius: 16, padding: 24 },
   modalTitle: { color: '#FFF', fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },
   input: { backgroundColor: '#0F0E17', color: '#FFF', padding: 15, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: '#333' },
+  imagePickerBtn: { backgroundColor: '#2A2940', padding: 15, borderRadius: 10, marginBottom: 12, borderWidth: 1, borderColor: '#D4AF37', alignItems: 'center' },
+  imagePickerBtnText: { color: '#D4AF37', fontSize: 14, fontWeight: 'bold' },
+  imagePreviewContainer: { alignItems: 'center', marginBottom: 12, position: 'relative' },
+  imagePreview: { width: 120, height: 120, borderRadius: 60, borderWidth: 3, borderColor: '#D4AF37' },
+  removeImageBtn: { position: 'absolute', top: -10, right: '35%', backgroundColor: '#ff4444', width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  removeImageBtnText: { color: '#FFF', fontSize: 14, fontWeight: 'bold' },
   modalButtons: { flexDirection: 'row', gap: 12, marginTop: 10 },
   modalCancelBtn: { flex: 1, backgroundColor: '#333', padding: 14, borderRadius: 10 },
   modalCancelText: { color: '#FFF', textAlign: 'center', fontWeight: 'bold' },
   modalSaveBtn: { flex: 1, backgroundColor: '#D4AF37', padding: 14, borderRadius: 10 },
-  modalSaveText: { color: '#0F0E17', textAlign: 'center', fontWeight: 'bold' }
+  modalSaveText: { color: '#0F0E17', textAlign: 'center', fontWeight: 'bold' },
+  notificationOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.8)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  notificationContent: { backgroundColor: '#1C1B29', borderRadius: 16, padding: 30, width: '100%', maxWidth: 320, alignItems: 'center' },
+  successBg: { borderTopWidth: 4, borderTopColor: '#4CAF50' },
+  errorBg: { borderTopWidth: 4, borderTopColor: '#ff4444' },
+  notificationIcon: { fontSize: 48, marginBottom: 15, color: '#D4AF37' },
+  notificationText: { color: '#FFF', fontSize: 16, textAlign: 'center', marginBottom: 20 },
+  notificationBtn: { backgroundColor: '#D4AF37', paddingHorizontal: 40, paddingVertical: 12, borderRadius: 10 },
+  notificationBtnText: { color: '#0F0E17', fontWeight: 'bold', fontSize: 16 },
+  confirmContent: { backgroundColor: '#1C1B29', borderRadius: 16, padding: 30, width: '100%', maxWidth: 320 },
+  confirmTitle: { color: '#FFF', fontSize: 20, fontWeight: 'bold', marginBottom: 10, textAlign: 'center' },
+  confirmMessage: { color: '#AAA', fontSize: 14, textAlign: 'center', marginBottom: 25 },
+  confirmButtons: { flexDirection: 'row', gap: 12 },
+  confirmCancelBtn: { flex: 1, backgroundColor: '#333', padding: 14, borderRadius: 10 },
+  confirmCancelText: { color: '#FFF', textAlign: 'center', fontWeight: 'bold' },
+  confirmOkBtn: { flex: 1, backgroundColor: '#ff4444', padding: 14, borderRadius: 10 },
+  confirmOkText: { color: '#FFF', textAlign: 'center', fontWeight: 'bold' }
 });

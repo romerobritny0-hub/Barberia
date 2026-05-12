@@ -1,10 +1,21 @@
 -- =============================================
 -- TAUROS BARBERÍA - Schema de Base de Datos
--- Supabase PostgreSQL
+-- Script idempotente (seguro para ejecutar varias veces)
+-- =============================================
+
+-- Eliminar tablas existentes (en orden inverso por dependencias)
+DROP TABLE IF EXISTS log_actividad CASCADE;
+DROP TABLE IF EXISTS reservas_horarios CASCADE;
+DROP TABLE IF EXISTS citas CASCADE;
+DROP TABLE IF EXISTS sillas CASCADE;
+DROP TABLE IF EXISTS barberos CASCADE;
+DROP TABLE IF EXISTS administradores CASCADE;
+
+-- =============================================
+-- CREAR TABLAS
 -- =============================================
 
 -- Tabla: administradores
--- Almacena los usuarios administradores del sistema
 CREATE TABLE administradores (
     id SERIAL PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -18,7 +29,6 @@ CREATE TABLE administradores (
 );
 
 -- Tabla: barberos
--- Almacena la información de los barberos
 CREATE TABLE barberos (
     id SERIAL PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL,
@@ -32,7 +42,6 @@ CREATE TABLE barberos (
 );
 
 -- Tabla: sillas
--- Almacena las estaciones de trabajo
 CREATE TABLE sillas (
     id SERIAL PRIMARY KEY,
     numero INTEGER NOT NULL UNIQUE,
@@ -43,7 +52,6 @@ CREATE TABLE sillas (
 );
 
 -- Tabla: citas
--- Almacena las citas programadas
 CREATE TABLE citas (
     id SERIAL PRIMARY KEY,
     cliente_nombre VARCHAR(100) NOT NULL,
@@ -62,7 +70,6 @@ CREATE TABLE citas (
 );
 
 -- Tabla: reservas_horarios
--- Almacena los horarios bloqueados por barbero
 CREATE TABLE reservas_horarios (
     id SERIAL PRIMARY KEY,
     barbero_id INTEGER REFERENCES barberos(id) ON DELETE CASCADE,
@@ -74,7 +81,6 @@ CREATE TABLE reservas_horarios (
 );
 
 -- Tabla: log_actividad
--- Registra actividad de los administradores
 CREATE TABLE log_actividad (
     id SERIAL PRIMARY KEY,
     administrador_id INTEGER REFERENCES administradores(id) ON DELETE SET NULL,
@@ -85,20 +91,17 @@ CREATE TABLE log_actividad (
 );
 
 -- =============================================
--- DATOS DE EJEMPLO (Seed Data)
+-- DATOS DE EJEMPLO
 -- =============================================
 
--- Insertar administrador (username: admin, password: admin2015)
 INSERT INTO administradores (nombre, username, password, rol) VALUES
 ('Administrador', 'admin', 'admin2015', 'superadmin');
 
--- Insertar barberos
 INSERT INTO barberos (nombre, especialidad, imagen) VALUES
 ('Carlos Mendoza', 'Corte Clásico', 'https://images.unsplash.com/photo-1599351431202-1e0f0137899a?w=400&h=500&fit=crop&crop=face'),
 ('Luis García', 'Fade Moderno', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=500&fit=crop&crop=face'),
 ('Miguel Torres', 'Diseño y Barba', 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=400&h=500&fit=crop&crop=face');
 
--- Insertar sillas
 INSERT INTO sillas (numero, ubicacion, estado) VALUES
 (1, 'Sala Principal', 'disponible'),
 (2, 'Sala Principal', 'disponible'),
@@ -109,7 +112,6 @@ INSERT INTO sillas (numero, ubicacion, estado) VALUES
 -- FUNCIONES Y TRIGGERS
 -- =============================================
 
--- Función para actualizar updated_at
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -118,32 +120,15 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Triggers para actualizar updated_at automáticamente
-CREATE TRIGGER update_administradores_updated_at
-    BEFORE UPDATE ON administradores
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_barberos_updated_at
-    BEFORE UPDATE ON barberos
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_sillas_updated_at
-    BEFORE UPDATE ON sillas
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_citas_updated_at
-    BEFORE UPDATE ON citas
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_administradores_updated_at BEFORE UPDATE ON administradores FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_barberos_updated_at BEFORE UPDATE ON barberos FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_sillas_updated_at BEFORE UPDATE ON sillas FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+CREATE TRIGGER update_citas_updated_at BEFORE UPDATE ON citas FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- =============================================
 -- POLÍTICAS DE SEGURIDAD (RLS)
 -- =============================================
 
--- Habilitar RLS
 ALTER TABLE administradores ENABLE ROW LEVEL SECURITY;
 ALTER TABLE barberos ENABLE ROW LEVEL SECURITY;
 ALTER TABLE sillas ENABLE ROW LEVEL SECURITY;
@@ -151,7 +136,6 @@ ALTER TABLE citas ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reservas_horarios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE log_actividad ENABLE ROW LEVEL SECURITY;
 
--- Políticas públicas para lectura
 CREATE POLICY "Allow public read" ON administradores FOR SELECT USING (true);
 CREATE POLICY "Allow public read" ON barberos FOR SELECT USING (true);
 CREATE POLICY "Allow public read" ON sillas FOR SELECT USING (true);
@@ -159,7 +143,6 @@ CREATE POLICY "Allow public read" ON citas FOR SELECT USING (true);
 CREATE POLICY "Allow public read" ON reservas_horarios FOR SELECT USING (true);
 CREATE POLICY "Allow public read" ON log_actividad FOR SELECT USING (true);
 
--- Políticas para modificaciones
 CREATE POLICY "Allow public insert" ON administradores FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public update" ON administradores FOR UPDATE USING (true);
 CREATE POLICY "Allow public delete" ON administradores FOR DELETE USING (true);
