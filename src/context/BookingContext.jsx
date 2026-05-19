@@ -10,7 +10,8 @@ export function BookingProvider({ children }) {
     const loadBookedSlots = async () => {
       try {
         const citas = await fetchCitas();
-        const slots = citas.map(cita => ({
+        const confirmedCitas = citas.filter(c => c.estado === 'confirmada');
+        const slots = confirmedCitas.map(cita => ({
           barberId: cita.barbero_id,
           date: cita.fecha,
           time: cita.hora,

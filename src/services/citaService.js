@@ -4,6 +4,7 @@ export const fetchCitas = async () => {
   const { data, error } = await supabase
     .from('citas')
     .select('*, barberos(nombre), sillas(numero)')
+    .eq('estado', 'confirmada')
     .order('fecha', { ascending: false });
   if (error) {
     console.error('Error fetching citas:', error);

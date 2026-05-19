@@ -109,9 +109,16 @@ export default function AdminSillas({ navigation }) {
       return;
     }
     
+    const numero = parseInt(form.numero);
+    const exists = sillas.some(s => s.numero === numero && (!editingSilla || s.id !== editingSilla.id));
+    if (exists) {
+      showNotification('error', 'El número de silla ya existe');
+      return;
+    }
+    
     try {
       setSaving(true);
-      const sillaData = { numero: parseInt(form.numero), ubicacion: form.ubicacion, estado: form.estado };
+      const sillaData = { numero, ubicacion: form.ubicacion, estado: form.estado };
       
       if (editingSilla) {
         await updateSilla(editingSilla.id, sillaData);
@@ -140,7 +147,7 @@ export default function AdminSillas({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={true}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.backText}>← Volver</Text>

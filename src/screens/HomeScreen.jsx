@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, StatusBar, ScrollView, useWindowDimensions } from 'react-native';
-import { BARBERS } from '../constants/barbers';
+import { View, Text, StyleSheet, Image, TouchableOpacity, StatusBar, ScrollView, useWindowDimensions, SafeAreaView } from 'react-native';
 import { fetchBarbers } from '../services/barberService';
 
 function BarberCard({ barber, onPress, cardWidth }) {
-  const isLocalImage = barber.imagen?.startsWith('blob:') || barber.imagen?.startsWith('file://');
-  
   return (
     <TouchableOpacity
       style={[styles.card, { width: cardWidth }]}
@@ -13,7 +10,7 @@ function BarberCard({ barber, onPress, cardWidth }) {
       activeOpacity={0.85}
     >
       <View style={styles.imageContainer}>
-        {barber.imagen && !isLocalImage ? (
+        {barber.imagen ? (
           <Image source={{ uri: barber.imagen }} style={styles.image} resizeMode="cover" />
         ) : (
           <View style={styles.imagePlaceholder}>
@@ -21,13 +18,13 @@ function BarberCard({ barber, onPress, cardWidth }) {
           </View>
         )}
       </View>
-      <View style={styles.content}>
-        <Text style={styles.name} numberOfLines={1}>{barber.nombre}</Text>
-        <Text style={styles.specialty} numberOfLines={1}>{barber.especialidad}</Text>
+      <View style={styles.infoContainer}>
+        <Text style={styles.name}>{barber.nombre}</Text>
+        <Text style={styles.specialty}>{barber.especialidad}</Text>
+        <TouchableOpacity style={styles.btn} onPress={onPress}>
+          <Text style={styles.btnText}>AGENDAR</Text>
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity style={styles.btn} onPress={onPress} activeOpacity={0.8}>
-        <Text style={styles.btnText}>AGENDAR</Text>
-      </TouchableOpacity>
     </TouchableOpacity>
   );
 }
@@ -36,7 +33,6 @@ export default function HomeScreen({ navigation }) {
   const { width } = useWindowDimensions();
   const [barbers, setBarbers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   
   const numColumns = width < 400 ? 1 : width < 768 ? 2 : 3;
   const cardWidth = (width - 40 - (numColumns - 1) * 12) / numColumns;
@@ -57,7 +53,7 @@ export default function HomeScreen({ navigation }) {
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
       <Text style={styles.title}>TAUROS BARBERÍA</Text>
       <Text style={styles.subtitle}>SISTEMA DE GESTIÓN DE TURNOS</Text>
@@ -73,13 +69,12 @@ export default function HomeScreen({ navigation }) {
       ) : barbers.length === 0 ? (
         <View style={styles.loadingContainer}>
           <Text style={styles.errorText}>No hay barberos disponibles</Text>
-          <Text style={styles.errorSubtext}>Verifica la conexión a Supabase</Text>
         </View>
       ) : (
         <ScrollView 
           style={styles.scrollContainer} 
-          contentContainerStyle={[styles.gridContainer, { paddingBottom: 20 }]}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.gridContainer}
+          showsVerticalScrollIndicator={true}
         >
           {barbers.map((barber) => (
             <BarberCard
@@ -91,7 +86,7 @@ export default function HomeScreen({ navigation }) {
           ))}
         </ScrollView>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -100,6 +95,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0F0E17',
     padding: 20
+  },
+  scrollContainer: {
+    flex: 1
   },
   title: {
     color: '#D4AF37',
@@ -134,7 +132,8 @@ const styles = StyleSheet.create({
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center'
+    alignItems: 'center',
+    minHeight: 200
   },
   loadingText: {
     color: '#D4AF37',
@@ -146,16 +145,11 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold'
   },
-  errorSubtext: {
-    color: '#888',
-    fontSize: 14,
-    marginTop: 5
-  },
-  scrollContainer: { flex: 1 },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    paddingBottom: 20
   },
   card: {
     backgroundColor: '#1C1B29',
@@ -164,15 +158,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 4,
     borderTopColor: '#D4AF37',
-    marginBottom: 12,
-    boxShadow: '0 4px 12px rgba(212, 175, 55, 0.15)'
+    marginBottom: 12
   },
   imageContainer: {
-    width: '100%',
+    width: '70%',
     aspectRatio: 1 / 1.2,
     borderRadius: 12,
     overflow: 'hidden',
-    backgroundColor: '#2A2940'
+    backgroundColor: '#2A2940',
+    alignSelf: 'center'
   },
   image: {
     width: '100%',
@@ -190,36 +184,35 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: 'bold'
   },
-  content: {
+  infoContainer: {
     width: '100%',
-    alignItems: 'center',
-    paddingVertical: 10
+    paddingTop: 10,
+    alignItems: 'center'
   },
   name: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 4
+    textAlign: 'center'
   },
   specialty: {
     color: '#D4AF37',
-    fontSize: 11,
+    fontSize: 12,
     textAlign: 'center',
-    opacity: 0.9
+    marginTop: 4
   },
   btn: {
     backgroundColor: '#D4AF37',
     paddingVertical: 10,
     paddingHorizontal: 24,
     borderRadius: 10,
-    marginTop: 8,
-    boxShadow: '0 2px 6px rgba(0, 0, 0, 0.25)'
+    marginTop: 12,
+    width: '100%'
   },
   btnText: {
     color: '#0F0E17',
     fontWeight: 'bold',
-    fontSize: 11,
-    letterSpacing: 0.5
+    fontSize: 12,
+    textAlign: 'center'
   }
 });

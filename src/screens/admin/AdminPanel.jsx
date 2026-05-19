@@ -21,7 +21,7 @@ export default function AdminPanel({ navigation, route }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={true}>
         <View style={styles.header}>
           <View style={styles.userInfo}>
             <View style={styles.avatar}>

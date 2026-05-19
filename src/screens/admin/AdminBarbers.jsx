@@ -1,8 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView, TextInput, Modal, Image, ActivityIndicator } from 'react-native';
 import { fetchBarbers, createBarber, updateBarber, deleteBarber } from '../../services/barberService';
-import { uploadBarberImage } from '../../services/imageService';
-import * as ImagePicker from 'expo-image-picker';
 
 function NotificationModal({ visible, type, message, onClose }) {
   return (
@@ -76,19 +74,16 @@ export default function AdminBarbers({ navigation }) {
     setEditingBarber(null);
   };
 
-  const pickImage = async () => {
-    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permissionResult.granted) {
-      showNotification('error', 'Permiso requerido para acceder a imágenes');
-      return;
-    }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setForm({ ...form, imagen: result.assets[0].uri });
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = (event) => {
+    const file = event.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setForm({ ...form, imagen: e.target.result });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -127,17 +122,7 @@ export default function AdminBarbers({ navigation }) {
     
     try {
       setSaving(true);
-      
-      let imagenUrl = form.imagen;
-      if (form.imagen && (form.imagen.startsWith('blob:') || form.imagen.startsWith('file://'))) {
-        imagenUrl = await uploadBarberImage(form.imagen, form.nombre);
-        if (!imagenUrl) {
-          showNotification('error', 'Error al subir imagen, se guardará sin imagen');
-          imagenUrl = '';
-        }
-      }
-      
-      const dataToSave = { ...form, imagen: imagenUrl };
+      const dataToSave = { ...form, imagen: form.imagen || '' };
       
       if (editingBarber) {
         await updateBarber(editingBarber.id, dataToSave);
@@ -157,7 +142,7 @@ export default function AdminBarbers({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={true}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.backText}>← Volver</Text>
@@ -211,9 +196,33 @@ export default function AdminBarbers({ navigation }) {
             <TextInput style={styles.input} placeholder="Nombre *" placeholderTextColor="#666" value={form.nombre} onChangeText={(t) => setForm({ ...form, nombre: t })} />
             <TextInput style={styles.input} placeholder="Especialidad *" placeholderTextColor="#666" value={form.especialidad} onChangeText={(t) => setForm({ ...form, especialidad: t })} />
             
-            <TouchableOpacity style={styles.imagePickerBtn} onPress={pickImage}>
-              <Text style={styles.imagePickerBtnText}>{form.imagen ? 'Cambiar imagen' : 'Seleccionar imagen'}</Text>
+            <Text style={styles.label}>Imagen</Text>
+            <TouchableOpacity 
+              style={styles.imagePickerBtn} 
+              onPress={() => fileInputRef.current?.click()}
+            >
+              <Text style={styles.imagePickerBtnText}>📁 Subir imagen</Text>
             </TouchableOpacity>
+            
+            <View style={{ height: 0, overflow: 'hidden' }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+              />
+            </View>
+            
+            <Text style={[styles.label, { marginTop: 10 }]}>O pega una URL:</Text>
+            <TextInput 
+              style={styles.input} 
+              value={form.imagen || ''}
+              onChangeText={(t) => setForm({ ...form, imagen: t })}
+              autoCapitalize="none"
+              keyboardType="url"
+              placeholder="https://ejemplo.com/imagen.jpg"
+              placeholderTextColor="#666"
+            />
             
             {form.imagen && (
               <View style={styles.imagePreviewContainer}>

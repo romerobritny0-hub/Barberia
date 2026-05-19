@@ -1,0 +1,44 @@
+/* Global scrollbar styles */
+::-webkit-scrollbar {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+::-webkit-scrollbar-track {
+  background: #1C1B29 !important;
+  border-radius: 7px !important;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #D4AF37 !important;
+  border-radius: 7px !important;
+  border: 3px solid #1C1B29 !important;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #b8962e !important;
+}
+
+::-webkit-scrollbar-corner {
+  background: #1C1B29 !important;
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thick !important;
+  scrollbar-color: #D4AF37 #1C1B29 !important;
+}
+
+/* Force scrollbar always visible */
+html, body, #root, div[style*="flex: 1"] {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: auto !important;
+  min-height: 100vh !important;
+}
+
+/* React Native ScrollView */
+div[class*="ScrollView"] {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}

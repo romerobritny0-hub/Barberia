@@ -114,7 +114,7 @@ export default function BarberDetailScreen({ route, navigation }) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const formatDate = (d) => `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth() + 1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+  const formatDate = (d) => d.toISOString().split('T')[0];
   const dateKey = formatDate(date);
 
   const isToday = date.toDateString() === new Date().toDateString();
